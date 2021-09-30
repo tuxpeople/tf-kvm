@@ -37,7 +37,7 @@ resource "libvirt_volume" "ubuntu_2104_qcow2" {
   format = "qcow2"
 }
 resource "libvirt_volume" "vm-disk" {
-  name           = "master.qcow2"
+  name           = "${random_pet.hostname.id}.qcow2"
   base_volume_id = libvirt_volume.ubuntu_2104_qcow2.id
   pool           = libvirt_pool.kvm_tf.name
   size           = "21474836480"
