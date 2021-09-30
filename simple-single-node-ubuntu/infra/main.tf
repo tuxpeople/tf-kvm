@@ -14,6 +14,8 @@ provider "libvirt" {
   uri = "qemu+ssh://ansible@${var.location}/system"
 }
 
+resource "random_pet" "hostname" {}
+
 resource "libvirt_network" "lab2-tf_network" {
   name      = "lab2-tf"
   mode      = "bridge"
@@ -21,22 +23,27 @@ resource "libvirt_network" "lab2-tf_network" {
   autostart = true
 }
 
-resource "libvirt_pool" "ubuntu" {
-  name = "ubuntu"
+resource "libvirt_pool" "kvm_tf" {
+  name = "kvm_tf"
   type = "dir"
   path = var.kvm_tf_pool_path
 }
 
 # We fetch the latest ubuntu release image from their mirrors
-resource "libvirt_volume" "ubuntu-qcow2" {
-  name   = "ubuntu-qcow2"
-  pool   = libvirt_pool.ubuntu.name
+resource "libvirt_volume" "ubuntu_2104_qcow2" {
+  name   = "ubuntu_2104_qcow2"
+  pool   = libvirt_pool.kvm_tf.name
   source = "https://cloud-images.ubuntu.com/releases/hirsute/release/ubuntu-21.04-server-cloudimg-amd64-disk-kvm.img"
   format = "qcow2"
 }
-
+resource "libvirt_volume" "vm-disk" {
+  name           = "master.qcow2"
+  base_volume_id = libvirt_volume.ubuntu_2104_qcow2.id
+  pool           = libvirt_pool.kvm_tf.name
+  size           = "21474836480"
+}
 data "template_file" "network_config" {
-  template = file("${path.module}/../user_data/network_config.cfg")
+  template = file("${path.module}/../user_data/network_config_dhcp.cfg")
 }
 
 # for more info about paramater check this out
@@ -46,15 +53,15 @@ data "template_file" "network_config" {
 resource "libvirt_cloudinit_disk" "commoninit" {
   name = "commoninit.iso"
   user_data = templatefile("${path.module}/../user_data/cloud_init.cfg", {
-    myhostname = "ubuntu-terraform"
+    myhostname = "${random_pet.hostname.id}"
   })
   network_config = data.template_file.network_config.rendered
-  pool           = libvirt_pool.ubuntu.name
+  pool           = libvirt_pool.kvm_tf.name
 }
 
 # Create the machine
 resource "libvirt_domain" "domain-ubuntu" {
-  name       = "ubuntu-terraform"
+  name       = random_pet.hostname.id
   memory     = "2048"
   vcpu       = 2
   autostart  = true
@@ -63,7 +70,7 @@ resource "libvirt_domain" "domain-ubuntu" {
   cloudinit = libvirt_cloudinit_disk.commoninit.id
 
   network_interface {
-    network_id     = libvirt_network.lab2-tf_network.id
+    network_id = libvirt_network.lab2-tf_network.id
     # wait_for_lease = true
   }
 
@@ -83,7 +90,7 @@ resource "libvirt_domain" "domain-ubuntu" {
   }
 
   disk {
-    volume_id = libvirt_volume.ubuntu-qcow2.id
+    volume_id = libvirt_volume.vm-disk.id
   }
 
   graphics {
@@ -98,3 +105,7 @@ resource "libvirt_domain" "domain-ubuntu" {
 /* output "ips" {
   value = libvirt_domain.domain-ubuntu.network_interface.0.addresses
 } */
+
+output "hostname" {
+  value = random_pet.hostname.id
+}
