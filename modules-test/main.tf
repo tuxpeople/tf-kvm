@@ -23,9 +23,9 @@ module "my_network" {
 }
 
 module "my_pool" {
-  source        = "srb3/pool/libvirt"
-  name = "kvm_tf"
-  path = "/data/virt/pools/kvm_tf_pool"
+  source = "srb3/pool/libvirt"
+  name   = "kvm_tf"
+  path   = "/data/virt/pools/kvm_tf_pool"
 }
 
 module "my-domain" {
